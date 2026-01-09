@@ -1,46 +1,11 @@
 import * as cheerio from "cheerio";
-
-interface FlareSolverrCookie {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  expires?: number;
-  httpOnly?: boolean;
-  secure?: boolean;
-  sameSite?: string;
-}
-
-interface FlareSolverrResponse {
-  status: string;
-  message: string;
-  solution?: {
-    url: string;
-    status: number;
-    response: string;
-    cookies: FlareSolverrCookie[];
-    userAgent: string;
-  };
-}
-
-export interface CoinsHistoryEntry {
-  number: number;
-  date: string;
-  description: string;
-  character: string;
-  balance: number;
-  coinType: "transferable" | "non-transferable";
-}
-
-export interface CoinsHistoryResult {
-  success: boolean;
-  entries: CoinsHistoryEntry[];
-  totalEntries: number;
-  error?: string;
-}
-
-const FLARESOLVERR_URL =
-  process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
+import { env } from "../../config/env.js";
+import {
+  CoinsHistoryEntry,
+  CoinsHistoryResult,
+  FlareSolverrCookie,
+  FlareSolverrResponse,
+} from "./coins-history.types.js";
 
 const TIBIA_COINS_HISTORY_URL =
   "https://www.tibia.com/account/?subtopic=accountmanagement&page=tibiacoinshistory";
@@ -52,7 +17,7 @@ async function loginAndGetSession(
   const sessionId = `coins_history_${Date.now()}`;
 
   console.log("Criando sessão no FlareSolverr...");
-  const createSessionResponse = await fetch(FLARESOLVERR_URL, {
+  const createSessionResponse = await fetch(env.FLARESOLVERR_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -71,7 +36,7 @@ async function loginAndGetSession(
   console.log(`Sessão criada: ${sessionId}`);
 
   console.log("Acessando página de login via FlareSolverr...");
-  const getLoginPageResponse = await fetch(FLARESOLVERR_URL, {
+  const getLoginPageResponse = await fetch(env.FLARESOLVERR_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -96,7 +61,7 @@ async function loginAndGetSession(
     email
   )}&loginpassword=${encodeURIComponent(password)}&login=Log+In`;
 
-  const loginResponse = await fetch(FLARESOLVERR_URL, {
+  const loginResponse = await fetch(env.FLARESOLVERR_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -134,7 +99,7 @@ async function loginAndGetSession(
 
 async function destroySession(sessionId: string): Promise<void> {
   try {
-    await fetch(FLARESOLVERR_URL, {
+    await fetch(env.FLARESOLVERR_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -224,7 +189,7 @@ export async function scrapeCoinsHistory(
     sessionId = session.sessionId;
 
     console.log("Acessando página de Tibia Coins History...");
-    const coinsPageResponse = await fetch(FLARESOLVERR_URL, {
+    const coinsPageResponse = await fetch(env.FLARESOLVERR_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -292,7 +257,7 @@ export async function scrapeCoinsHistoryWithSession(
     console.log(
       "Acessando página de Tibia Coins History com sessão existente..."
     );
-    const coinsPageResponse = await fetch(FLARESOLVERR_URL, {
+    const coinsPageResponse = await fetch(env.FLARESOLVERR_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
