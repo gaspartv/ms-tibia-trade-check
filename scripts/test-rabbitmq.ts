@@ -1,7 +1,11 @@
 import amqplib from "amqplib";
+import { env } from "../src/config/env.js";
 
 const QUEUE_NAME = "check-tibia-coins";
-const RABBITMQ_URL = "amqp://tibia_user:tibia_password@localhost:5672/";
+
+function getRabbitMQUrl(): string {
+  return `amqp://${env.RABBITMQ_USER}:${env.RABBITMQ_PASSWORD}@${env.RABBITMQ_HOST}:${env.RABBITMQ_PORT}${env.RABBITMQ_VHOST}`;
+}
 
 interface CheckTibiaCoinsPayload {
   send_name: string;
@@ -12,7 +16,7 @@ interface CheckTibiaCoinsPayload {
 async function publishTestMessage() {
   console.log("🐰 Conectando ao RabbitMQ...");
 
-  const connection = await amqplib.connect(RABBITMQ_URL);
+  const connection = await amqplib.connect(getRabbitMQUrl());
   const channel = await connection.createChannel();
 
   await channel.assertQueue(QUEUE_NAME, { durable: true });

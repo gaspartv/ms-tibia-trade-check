@@ -1,3 +1,4 @@
+import "../src/config/env.js";
 import {
   closeRabbitMQ,
   connectRabbitMQ,
