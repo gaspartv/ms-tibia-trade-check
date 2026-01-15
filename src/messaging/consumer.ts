@@ -1,12 +1,17 @@
 import { ConsumeMessage } from "amqplib";
+import { eq } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { coinTransactions } from "../db/schema.js";
 import { getChannel } from "./rabbitmq.js";
 
 const QUEUE_NAME = "check-tibia-coins";
 
 export interface CheckTibiaCoinsPayload {
-  send_name: string;
-  received_name: string;
-  tc_amount: string;
+  sent_to: string;
+  sent_by: string;
+  amount_tibia_coins: number;
+  timestamp: number;
+  id_transaction: string;
 }
 
 export type MessageHandler = (
@@ -19,10 +24,8 @@ export async function startCheckTibiaCoinsConsumer(
 ): Promise<void> {
   const channel = await getChannel();
 
-  // Configura prefetch para processar uma mensagem por vez
   await channel.prefetch(1);
 
-  // Garante que a fila existe
   await channel.assertQueue(QUEUE_NAME, { durable: true });
 
   console.log(`🎧 Consumer registrado na fila: ${QUEUE_NAME}`);
@@ -39,9 +42,48 @@ export async function startCheckTibiaCoinsConsumer(
         const content = msg.content.toString();
         const data = JSON.parse(content) as CheckTibiaCoinsPayload;
 
-        console.log(`📨 Mensagem recebida:`, data);
+        const coinTransaction = await db
+          .select()
+          .from(coinTransactions)
+          .where(eq(coinTransactions.idTransaction, data.id_transaction))
+          .limit(1);
 
-        await handler(data, msg);
+        console.log("🔍 Verificando transação:", coinTransaction);
+
+        if (coinTransaction.length > 0) {
+          if (coinTransaction[0].processed) {
+            console.log(
+              `⚠️ Transação com id_transaction ${data.id_transaction} já processada. Ignorando mensagem.`
+            );
+            channel.ack(msg);
+            return;
+          }
+
+          if (coinTransaction[0].processed === false) {
+            console.log(
+              `⚠️ Transação com id_transaction ${data.id_transaction} já existe mas não foi processada. Processando novamente.`
+            );
+            channel.ack(msg);
+            return;
+          }
+        }
+
+        const coinTransactionCreated = await db
+          .insert(coinTransactions)
+          .values({
+            sentTo: data.sent_to,
+            sentBy: data.sent_by,
+            amountTibiaCoins: data.amount_tibia_coins,
+            timestamp: data.timestamp,
+            idTransaction: data.id_transaction,
+            processed: false,
+          })
+          .returning();
+
+        console.log(
+          `🆕 Nova transação de coins registrada:`,
+          coinTransactionCreated[0]
+        );
 
         channel.ack(msg);
         console.log(`✅ Mensagem processada e confirmada`);
@@ -49,7 +91,7 @@ export async function startCheckTibiaCoinsConsumer(
         console.error(`❌ Erro ao processar mensagem:`, error);
 
         channel.nack(msg, false, true);
-        console.log(`🔄 Mensagem reenfileirada`);
+        console.log(`🔄 Mensagem reendireitada`);
       }
     },
     { noAck: false }

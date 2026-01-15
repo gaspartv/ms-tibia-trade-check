@@ -1,10 +1,13 @@
 import {
+  bigint,
+  boolean,
   integer,
   json,
   pgTable,
   serial,
   text,
   timestamp,
+  uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -14,6 +17,17 @@ export const characters = pgTable("characters", {
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   password: varchar("password", { length: 255 }).notNull(),
+});
+
+// Tabela de transações de coins
+export const coinTransactions = pgTable("coin_transactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sentTo: varchar("sent_to", { length: 255 }).notNull(),
+  sentBy: varchar("sent_by", { length: 255 }).notNull(),
+  amountTibiaCoins: integer("amount_tibia_coins").notNull(),
+  timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+  idTransaction: varchar("id_transaction", { length: 255 }).notNull().unique(),
+  processed: boolean("processed").default(false).notNull(),
 });
 
 // Tabela de logs de requisições

@@ -8,9 +8,11 @@ function getRabbitMQUrl(): string {
 }
 
 interface CheckTibiaCoinsPayload {
-  send_name: string;
-  received_name: string;
-  tc_amount: string;
+  sent_to: string;
+  sent_by: string;
+  amount_tibia_coins: number;
+  timestamp: number;
+  id_transaction: string;
 }
 
 async function publishTestMessage() {
@@ -22,9 +24,11 @@ async function publishTestMessage() {
   await channel.assertQueue(QUEUE_NAME, { durable: true });
 
   const testPayload: CheckTibiaCoinsPayload = {
-    send_name: "Player Sender",
-    received_name: "Player Receiver",
-    tc_amount: "250",
+    sent_to: "raphaelita",
+    sent_by: "raphaelitta",
+    amount_tibia_coins: 250,
+    timestamp: 1580666943000,
+    id_transaction: "test-transaction-id-123",
   };
 
   const message = Buffer.from(JSON.stringify(testPayload));

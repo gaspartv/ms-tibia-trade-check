@@ -4,6 +4,13 @@ export interface CoinsHistoryBody {
   sessionId?: string;
 }
 
+export interface CoinsHistoryCheckBody {
+  sent_to: string;
+  sent_by: string;
+  amount_tibia_coins: number;
+  timestamp: number;
+}
+
 export interface CoinsHistoryEntry {
   number: number;
   date: string;

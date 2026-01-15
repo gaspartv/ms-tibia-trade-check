@@ -4,6 +4,9 @@ import * as z from "zod";
 const envSchema = z.object({
   PORT: z.string().transform((val) => Number(val)),
   FLARESOLVERR_URL: z.url(),
+  PROXY_URL: z.string().optional(),
+  PROXY_USERNAME: z.string().optional(),
+  PROXY_PASSWORD: z.string().optional(),
 
   DATABASE_HOST: z.string(),
   DATABASE_PORT: z.coerce.number(),

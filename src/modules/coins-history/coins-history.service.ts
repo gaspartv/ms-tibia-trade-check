@@ -17,21 +17,38 @@ async function loginAndGetSession(
   const sessionId = `coins_history_${Date.now()}`;
 
   console.log("Criando sessão no FlareSolverr...");
+  const proxyConfig = env.PROXY_URL
+    ? {
+        proxy: {
+          url: env.PROXY_URL,
+          ...(env.PROXY_USERNAME && { username: env.PROXY_USERNAME }),
+          ...(env.PROXY_PASSWORD && { password: env.PROXY_PASSWORD }),
+        },
+      }
+    : {};
+
   const createSessionResponse = await fetch(env.FLARESOLVERR_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       cmd: "sessions.create",
       session: sessionId,
+      ...proxyConfig,
     }),
   });
 
   const createSessionData = (await createSessionResponse.json()) as {
     status: string;
-    message: string;
+    message?: string;
   };
+  console.log(
+    "CREATE SESSION RESPONSE:",
+    JSON.stringify(createSessionData, null, 2)
+  );
   if (createSessionData.status !== "ok") {
-    throw new Error(`Falha ao criar sessão: ${createSessionData.message}`);
+    throw new Error(
+      `Falha ao criar sessão: ${JSON.stringify(createSessionData)}`
+    );
   }
   console.log(`Sessão criada: ${sessionId}`);
 
@@ -44,6 +61,7 @@ async function loginAndGetSession(
       url: "https://www.tibia.com/account/?subtopic=accountmanagement",
       session: sessionId,
       maxTimeout: 120000,
+      // Proxy já configurado na sessão, não passar aqui
     }),
   });
 
@@ -56,10 +74,22 @@ async function loginAndGetSession(
     );
   }
 
+  console.log("\n=== LOGIN PAGE DEBUG ===");
+  console.log(`Status: ${loginPageData.solution.status}`);
+  console.log(`URL: ${loginPageData.solution.url}`);
+  console.log(`HTML length: ${loginPageData.solution.response.length}`);
+  console.log(
+    `Has form: ${loginPageData.solution.response.includes("loginemail")}`
+  );
+  console.log("========================\n");
+
   console.log("Enviando credenciais de login...");
+  // Incluir a URL de redirecionamento para a página de Coins History após login
   const postData = `loginemail=${encodeURIComponent(
     email
   )}&loginpassword=${encodeURIComponent(password)}&login=Log+In`;
+
+  console.log(`PostData: ${postData}`);
 
   const loginResponse = await fetch(env.FLARESOLVERR_URL, {
     method: "POST",
@@ -70,26 +100,62 @@ async function loginAndGetSession(
       session: sessionId,
       postData: postData,
       maxTimeout: 60000,
+      waitInSeconds: 3, // Aguardar após login
+      // Proxy já configurado na sessão, não passar aqui
     }),
   });
 
   const loginData = (await loginResponse.json()) as FlareSolverrResponse;
+  console.log("LOGIN RESPONSE STATUS:", loginData.status);
+  console.log("LOGIN RESPONSE MESSAGE:", loginData.message);
+  console.log("LOGIN RESPONSE HAS SOLUTION:", !!loginData.solution);
 
   if (loginData.status !== "ok" || !loginData.solution) {
-    throw new Error(`Falha ao fazer login: ${loginData.message}`);
+    throw new Error(`Falha ao fazer login: ${JSON.stringify(loginData)}`);
   }
 
+  console.log("\n=== POST LOGIN RESPONSE ===");
+  console.log(`Status: ${loginData.solution.status}`);
+  console.log(`URL: ${loginData.solution.url}`);
+  console.log(
+    `Has loginemail form: ${loginData.solution.response.includes("loginemail")}`
+  );
+  console.log(
+    `Has Please log in: ${loginData.solution.response.includes(
+      "Please log in"
+    )}`
+  );
+  console.log(`HTML length: ${loginData.solution.response.length}`);
+  console.log("===========================\n");
+
   const responseHtml = loginData.solution.response;
+  const responseUrl = loginData.solution.url;
+  const responseStatus = loginData.solution.status;
+
+  // Log detalhado para debug
+  console.log("\n=== LOGIN DEBUG ===");
+  console.log(`URL após login: ${responseUrl}`);
+  console.log(`Status HTTP: ${responseStatus}`);
+  console.log(`Tamanho HTML: ${responseHtml.length} bytes`);
+  console.log(`Primeiros 500 chars: ${responseHtml.substring(0, 500)}`);
+  console.log("===================\n");
+
+  // Verificar se o login foi bem-sucedido
+  // Pode verificar por URL, status code ou conteúdo
   const isLogged =
-    responseHtml.includes("Account Status") ||
-    responseHtml.includes("Account Management") ||
-    responseHtml.includes("Logout");
+    responseStatus === 200 &&
+    (responseUrl.includes("account") || responseUrl.includes("tibia.com")) &&
+    (responseHtml.includes("Account Status") ||
+      responseHtml.includes("Account Management") ||
+      responseHtml.includes("Logout") ||
+      responseHtml.includes("loginemail") === false); // Se NOT tem form de login = está logado
 
   if (!isLogged) {
+    console.error("HTML response sample:", responseHtml.substring(0, 1000));
     throw new Error("Login falhou. Verifique suas credenciais.");
   }
 
-  console.log("Login realizado com sucesso!");
+  console.log("✅ Login realizado com sucesso!");
 
   return {
     sessionId,
@@ -116,6 +182,19 @@ async function destroySession(sessionId: string): Promise<void> {
 function parseCoinsHistoryTable(html: string): CoinsHistoryEntry[] {
   const $ = cheerio.load(html);
   const entries: CoinsHistoryEntry[] = [];
+
+  // Debug logging
+  const rows = $("tr");
+  console.log(`\n=== PARSE DEBUG ===`);
+  console.log(`Total de linhas <tr>: ${rows.length}`);
+  console.log(
+    `HTML contains 'Coins History': ${html.includes("Coins History")}`
+  );
+  console.log(
+    `HTML contains 'Account Status': ${html.includes("Account Status")}`
+  );
+  console.log(`Primeiros 1000 chars: ${html.substring(0, 1000)}`);
+  console.log(`==================\n`);
 
   $("tr").each((_, row) => {
     const $row = $(row);
@@ -189,6 +268,8 @@ export async function scrapeCoinsHistory(
     sessionId = session.sessionId;
 
     console.log("Acessando página de Tibia Coins History...");
+    console.log(`URL: ${TIBIA_COINS_HISTORY_URL}`);
+
     const coinsPageResponse = await fetch(env.FLARESOLVERR_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -197,15 +278,33 @@ export async function scrapeCoinsHistory(
         url: TIBIA_COINS_HISTORY_URL,
         session: sessionId,
         maxTimeout: 60000,
+        waitInSeconds: 3, // Aguardar a página renderizar completamente
+        // IMPORTANTE: Não usar proxy aqui - deixar FlareSolverr gerenciar
+        // ...(env.PROXY_URL && { proxy: { url: env.PROXY_URL } }),
       }),
     });
 
     const coinsPageData =
       (await coinsPageResponse.json()) as FlareSolverrResponse;
 
+    console.log("COINS HISTORY GET RESPONSE:");
+    console.log("Status:", coinsPageData.status);
+    console.log("Message:", coinsPageData.message);
+    console.log("Has solution:", !!coinsPageData.solution);
+    if (coinsPageData.solution) {
+      console.log("Solution status:", coinsPageData.solution.status);
+      console.log("Solution URL:", coinsPageData.solution.url);
+      console.log(
+        "Solution response length:",
+        coinsPageData.solution.response.length
+      );
+    }
+
     if (coinsPageData.status !== "ok" || !coinsPageData.solution) {
       throw new Error(
-        `Falha ao acessar página de Coins History: ${coinsPageData.message}`
+        `Falha ao acessar página de Coins History: ${JSON.stringify(
+          coinsPageData
+        )}`
       );
     }
 
@@ -213,6 +312,32 @@ export async function scrapeCoinsHistory(
     console.log(
       `Página de Coins History carregada. Status: ${coinsPageData.solution.status}`
     );
+
+    // Debug: salvar HTML para inspeção
+    console.log(`\n=== COINS HISTORY PAGE DEBUG ===`);
+    console.log(`HTML length: ${html.length} bytes`);
+    console.log(
+      `Has Cloudflare check: ${
+        html.includes("Cloudflare") ||
+        html.includes("challenged") ||
+        html.includes("cf_challenge")
+      }`
+    );
+    console.log(`Has Account Status: ${html.includes("Account Status")}`);
+    console.log(
+      `HTML title tag: ${
+        html.match(/<title>(.*?)<\/title>/)?.[1] || "NOT FOUND"
+      }`
+    );
+
+    // Salvar HTML em arquivo para análise
+    const fs = await import("fs");
+    const htmlFile = `/tmp/coins_history_${sessionId}.html`;
+    fs.writeFileSync(htmlFile, html);
+    console.log(`HTML salvo em: ${htmlFile}`);
+
+    console.log(`First 1000 chars:\n${html.substring(0, 1000)}`);
+    console.log(`===============================\n`);
 
     if (
       html.includes("Please log in") ||
@@ -265,6 +390,7 @@ export async function scrapeCoinsHistoryWithSession(
         url: TIBIA_COINS_HISTORY_URL,
         session: sessionId,
         maxTimeout: 60000,
+        // Proxy já configurado na sessão, não passar aqui
       }),
     });
 
