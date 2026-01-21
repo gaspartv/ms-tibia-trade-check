@@ -28,6 +28,7 @@ export const coinTransactions = pgTable("coin_transactions", {
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
   idTransaction: varchar("id_transaction", { length: 255 }).notNull().unique(),
   processed: boolean("processed").default(false).notNull(),
+  webhookUrl: text("webhook_url"),
 });
 
 // Tabela de logs de requisições

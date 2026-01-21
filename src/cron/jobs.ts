@@ -41,7 +41,7 @@ export function startCronJobs() {
           };
         } else {
           console.log(
-            `⚠️ Personagem ${sent_to} não encontrado. Pulando transação ID ${transaction.id}.`
+            `⚠️ Personagem ${sent_to} não encontrado. Pulando transação ID ${transaction.id}.`,
           );
           continue;
         }
@@ -49,7 +49,7 @@ export function startCronJobs() {
 
       const result = await scrapeCoinsHistory(
         credentials[sent_to].email,
-        credentials[sent_to].password
+        credentials[sent_to].password,
       );
 
       const coinHistory = result.entries
@@ -66,7 +66,7 @@ export function startCronJobs() {
             new Date(),
             {
               locale: enUS,
-            }
+            },
           );
 
           return {
@@ -90,20 +90,45 @@ export function startCronJobs() {
 
       if (!coinHistory) {
         console.log(
-          `❌ Nenhum histórico de coins encontrado para a transação ID ${transaction.id}.`
+          `❌ Nenhum histórico de coins encontrado para a transação ID ${transaction.id}.`,
         );
         continue;
       }
 
       // ENVIAR PARA O WEBHOOK DA API PRINCIPAL AVISANDO QUE A TRANSAÇÃO FOI REALIZADA COM SUCESSO.
-      // AGUARDAR CONFIRMAÇÃO DA API PRINCIPAL.
-      // ATUALIZAR O STATUS DA TRANSAÇÃO PARA PROCESSADA.
-      // precisa enviar o id_transaction para a API principal
+      if (!transaction.webhookUrl) {
+        console.log(
+          `⚠️ Transação ID ${transaction.id} não possui webhookUrl definido. Pulando notificação.`,
+        );
+        continue;
+      }
 
+      const response = await fetch(transaction.webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id_transaction: transaction.idTransaction,
+          status: "success",
+        }),
+      });
+
+      // AGUARDAR CONFIRMAÇÃO DA API PRINCIPAL.
+      if (!response.ok) {
+        console.log(
+          `❌ Falha ao notificar a API principal para a transação ID ${transaction.id}. Status: ${response.status}`,
+        );
+        continue;
+      }
+
+      // ATUALIZAR O STATUS DA TRANSAÇÃO PARA PROCESSADA.
       await db
         .update(coinTransactions)
         .set({ processed: true })
         .where(eq(coinTransactions.id, transaction.id));
+
+      // precisa enviar o id_transaction para a API principal
     }
   });
 

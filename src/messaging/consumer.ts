@@ -12,15 +12,16 @@ export interface CheckTibiaCoinsPayload {
   amount_tibia_coins: number;
   timestamp: number;
   id_transaction: string;
+  webhook_url: string;
 }
 
 export type MessageHandler = (
   message: CheckTibiaCoinsPayload,
-  rawMessage: ConsumeMessage
+  rawMessage: ConsumeMessage,
 ) => Promise<void>;
 
 export async function startCheckTibiaCoinsConsumer(
-  handler: MessageHandler
+  handler: MessageHandler,
 ): Promise<void> {
   const channel = await getChannel();
 
@@ -53,7 +54,7 @@ export async function startCheckTibiaCoinsConsumer(
         if (coinTransaction.length > 0) {
           if (coinTransaction[0].processed) {
             console.log(
-              `⚠️ Transação com id_transaction ${data.id_transaction} já processada. Ignorando mensagem.`
+              `⚠️ Transação com id_transaction ${data.id_transaction} já processada. Ignorando mensagem.`,
             );
             channel.ack(msg);
             return;
@@ -61,7 +62,7 @@ export async function startCheckTibiaCoinsConsumer(
 
           if (coinTransaction[0].processed === false) {
             console.log(
-              `⚠️ Transação com id_transaction ${data.id_transaction} já existe mas não foi processada. Processando novamente.`
+              `⚠️ Transação com id_transaction ${data.id_transaction} já existe mas não foi processada. Processando novamente.`,
             );
             channel.ack(msg);
             return;
@@ -77,12 +78,13 @@ export async function startCheckTibiaCoinsConsumer(
             timestamp: data.timestamp,
             idTransaction: data.id_transaction,
             processed: false,
+            webhookUrl: data.webhook_url,
           })
           .returning();
 
         console.log(
           `🆕 Nova transação de coins registrada:`,
-          coinTransactionCreated[0]
+          coinTransactionCreated[0],
         );
 
         channel.ack(msg);
@@ -94,6 +96,6 @@ export async function startCheckTibiaCoinsConsumer(
         console.log(`🔄 Mensagem reendireitada`);
       }
     },
-    { noAck: false }
+    { noAck: false },
   );
 }

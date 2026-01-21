@@ -1,0 +1,1 @@
+ALTER TABLE "coin_transactions" ADD COLUMN "webhook_url" text;
