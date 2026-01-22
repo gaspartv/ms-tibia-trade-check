@@ -6,12 +6,8 @@ import { db } from "../db/index.js";
 import { characters, coinTransactions } from "../db/schema.js";
 import { scrapeCoinsHistory } from "../modules/coins-history/coins-history.service.js";
 
-/**
- * Cron job que executa a cada 30 segundos
- */
 export function startCronJobs() {
-  // Executa a cada 30 segundos
-  cron.schedule("*/30 * * * * *", async () => {
+  cron.schedule("0 */5 * * * *", async () => {
     const transactions = await db
       .select()
       .from(coinTransactions)
@@ -95,7 +91,6 @@ export function startCronJobs() {
         continue;
       }
 
-      // ENVIAR PARA O WEBHOOK DA API PRINCIPAL AVISANDO QUE A TRANSAÇÃO FOI REALIZADA COM SUCESSO.
       if (!transaction.webhookUrl) {
         console.log(
           `⚠️ Transação ID ${transaction.id} não possui webhookUrl definido. Pulando notificação.`,
@@ -114,7 +109,6 @@ export function startCronJobs() {
         }),
       });
 
-      // AGUARDAR CONFIRMAÇÃO DA API PRINCIPAL.
       if (!response.ok) {
         console.log(
           `❌ Falha ao notificar a API principal para a transação ID ${transaction.id}. Status: ${response.status}`,
@@ -122,13 +116,10 @@ export function startCronJobs() {
         continue;
       }
 
-      // ATUALIZAR O STATUS DA TRANSAÇÃO PARA PROCESSADA.
       await db
         .update(coinTransactions)
         .set({ processed: true })
         .where(eq(coinTransactions.id, transaction.id));
-
-      // precisa enviar o id_transaction para a API principal
     }
   });
 

@@ -25,8 +25,8 @@ const _env = envSchema.safeParse(process.env);
 
 if (_env.success === false) {
   console.error(
-    "❌ Invalid environment variables",
-    JSON.stringify(_env.error.format(), null, 2)
+    "❌ Variáveis ​​de ambiente inválidas.",
+    JSON.stringify(_env.error.format(), null, 2),
   );
 
   process.exit(1);
